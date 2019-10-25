@@ -110,3 +110,21 @@ TestSlide extracts the name for contexts and examples from the function name, ju
 .. note::
 
   When explicitly naming, the function name is irrelevant, just make sure there's no name collision.
+
+async examples
+--------------
+
+Examples can also be declared as async functions:
+
+.. code-block:: python
+
+  from testslide.dsl import context
+  import asyncio
+
+  @context
+  def async_example_showcase(context):
+    @context.example
+    async def ex(self):
+      await asyncio.sleep(1)
+
+Each example will be executed into its own event loop.
