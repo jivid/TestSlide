@@ -99,7 +99,8 @@ class _DSLContext(object):
         if inspect.iscoroutinefunction(example_code):
 
             def new_example_code(*args, **kwargs):
-                asyncio.run(example_code(*args, **kwargs))
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(example_code(*args, **kwargs))
 
             final_example_code = new_example_code
         else:
