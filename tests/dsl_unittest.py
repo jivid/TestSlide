@@ -1561,6 +1561,37 @@ class TestDSLAroundHook(TestDSLBase):
 
 
 class TestExample(TestDSLBase):
+    def test_run(self):
+        """
+        Example code is executed after it is loaded.
+        """
+
+        self.run = False
+
+        @context
+        def run_example(context):
+            @context.example
+            def set_run(_):
+                self.run = True
+
+        self.assertFalse(self.run)
+        self.run_first_context_first_example()
+        self.assertTrue(self.run)
+
+        reset()
+
+        self.run = False
+
+        @context
+        def async_run_example(context):
+            @context.example
+            async def async_set_run(_):
+                self.run = True
+
+        self.assertFalse(self.run)
+        self.run_first_context_first_example()
+        self.assertTrue(self.run)
+
     def test_can_be_named_from_decorator(self):
         """
         Examples can be declared with @context.example(name) decorator.
@@ -1573,7 +1604,14 @@ class TestExample(TestDSLBase):
             def whatever(_):
                 pass
 
+            @context.example(f"async_{name}")
+            async def async_whatever(_):
+                pass
+
         self.assertEqual(str(Context.all_top_level_contexts[0].examples[0]), name)
+        self.assertEqual(
+            str(Context.all_top_level_contexts[0].examples[1]), f"async_{name}"
+        )
 
     def test_can_be_named_from_function(self):
         """
@@ -1587,8 +1625,15 @@ class TestExample(TestDSLBase):
             def Example_name(_):
                 pass
 
+            @context.example
+            async def async_Example_name(_):
+                pass
+
         self.assertEqual(
             str(Context.all_top_level_contexts[0].examples[0]), "Example name"
+        )
+        self.assertEqual(
+            str(Context.all_top_level_contexts[0].examples[1]), "async Example name"
         )
 
     def test_cant_create_example_outside_context(self):
@@ -1603,6 +1648,14 @@ class TestExample(TestDSLBase):
             def whatever(_):
                 pass
 
+        with self.assertRaisesRegex(
+            TypeError, "Can not create example without a parent context"
+        ):
+
+            @context.example
+            async def async_whatever(_):
+                pass
+
     def test_skip_with_xexample(self):
         """
         An example can be declared as skip with @context.xexample.
@@ -1614,20 +1667,42 @@ class TestExample(TestDSLBase):
             def skip_with_xexample(_):
                 pass
 
+            @context.xexample
+            async def async_skip_with_xexample(_):
+                pass
+
             @context.example(skip=True)
             def skip_with_skip_arg(_):
+                pass
+
+            @context.example(skip=True)
+            async def async_skip_with_skip_arg(_):
                 pass
 
             @context.example("skip_with_name_and_skip_arg", skip=True)
             def skip_with_name_and_skip_arg(_):
                 pass
 
+            @context.example("async_skip_with_name_and_skip_arg", skip=True)
+            async def async_skip_with_name_and_skip_arg(_):
+                pass
+
             @context.example(skip_unless=False)
             def skip_with_skip_unless_arg(_):
                 pass
 
+            @context.example(skip_unless=False)
+            async def async_skip_with_skip_unless_arg(_):
+                pass
+
             @context.example("skip_with_name_and_skip_unless_arg", skip_unless=False)
             def skip_with_name_and_skip_unless_arg(_):
+                pass
+
+            @context.example(
+                "async_skip_with_name_and_skip_unless_arg", skip_unless=False
+            )
+            async def async_skip_with_name_and_skip_unless_arg(_):
                 pass
 
         self.assertTrue(Context.all_top_level_contexts[0].examples)
@@ -1645,7 +1720,12 @@ class TestExample(TestDSLBase):
             def also_skipped(_):
                 pass
 
+            @context.example
+            async def async_also_skipped(_):
+                pass
+
         self.assertTrue(Context.all_top_level_contexts[0].examples[0].skip)
+        self.assertTrue(Context.all_top_level_contexts[0].examples[1].skip)
 
     def test_focus_with_fexample(self):
         """
@@ -1658,7 +1738,12 @@ class TestExample(TestDSLBase):
             def focused(_):
                 pass
 
+            @context.fexample
+            async def async_focused(_):
+                pass
+
         self.assertTrue(Context.all_top_level_contexts[0].examples[0].focus)
+        self.assertTrue(Context.all_top_level_contexts[0].examples[1].focus)
 
     def test_inherits_focus_from_fcontext(self):
         """
@@ -1671,15 +1756,19 @@ class TestExample(TestDSLBase):
             def also_focused(_):
                 pass
 
+            @context.example
+            async def async_also_focused(_):
+                pass
+
         self.assertTrue(Context.all_top_level_contexts[0].examples[0].focus)
+        self.assertTrue(Context.all_top_level_contexts[0].examples[1].focus)
 
     def test_cant_call_example_function(self):
         """
         It is not allowed to call example function directly.
         """
-        with self.assertRaisesRegex(
-            BaseException, "This function should not be called outside test code."
-        ):
+        message = "This function should not be called outside test code."
+        with self.assertRaisesRegex(BaseException, message):
 
             @context
             def top_context(context):
@@ -1689,14 +1778,23 @@ class TestExample(TestDSLBase):
 
                 not_callable(None)
 
+        with self.assertRaisesRegex(BaseException, message):
+
+            @context
+            def async_top_context(context):
+                @context.example
+                async def async_not_callable(_):
+                    pass
+
+                async_not_callable(None)
+
     def test_cant_create_two_with_same_name(self):
         """
         User should get a clear error message if two examples with the same
         name are declared within the same context.
         """
-        with self.assertRaisesRegex(
-            RuntimeError, "An example with the same name is already defined"
-        ):
+        message = "An example with the same name is already defined"
+        with self.assertRaisesRegex(RuntimeError, message):
 
             @context
             def top_context(context):
@@ -1708,6 +1806,18 @@ class TestExample(TestDSLBase):
                 def whatever(_):
                     pass
 
+        with self.assertRaisesRegex(RuntimeError, message):
+
+            @context
+            def async_top_context(context):
+                @context.example
+                async def async_same_name(_):
+                    pass
+
+                @context.example("async same name")
+                async def async_whatever(_):
+                    pass
+
     def test_can_call_unittest_assert_methods(self):
         """
         Python's unittest.TestCase assert* methods are available to use.
@@ -1717,6 +1827,16 @@ class TestExample(TestDSLBase):
         def unittest_assert_methods(context):
             @context.example
             def has_assert_true(self):
+                self.assertTrue(True)
+
+        self.run_first_context_first_example()
+
+        reset()
+
+        @context
+        def async_unittest_assert_methods(context):
+            @context.example
+            async def async_has_assert_true(self):
                 self.assertTrue(True)
 
         self.run_first_context_first_example()

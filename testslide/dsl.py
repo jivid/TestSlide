@@ -3,7 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import asyncio
 import functools
+import inspect
 from re import sub as _sub
 
 from . import Context as _Context
@@ -94,7 +96,17 @@ class _DSLContext(object):
     def _create_example(self, name, example_code, skip, focus):
         if name is None:
             name = self._name_from_function(example_code)
-        self.current_context.add_example(name, example_code, skip=skip, focus=focus)
+        if inspect.iscoroutinefunction(example_code):
+
+            def new_example_code(*args, **kwargs):
+                asyncio.run(example_code(*args, **kwargs))
+
+            final_example_code = new_example_code
+        else:
+            final_example_code = example_code
+        self.current_context.add_example(
+            name, final_example_code, skip=skip, focus=focus
+        )
         return self._not_callable
 
     def example(self, arg=None, skip=False, focus=False, skip_unless=True):
